@@ -1,98 +1,46 @@
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from django.db.models import Q
-
+from django.http import FileResponse
 from .models import User, Post, Follow
-from .serializers import UserSerializer, PostSerializer
+from .serializers import UserSerializer, PostSerializer, FollowSerializer
 
 
-# -----------------------------------
-# Custom Permission: Owner Only Edit
-# -----------------------------------
-class IsOwnerOrReadOnly(permissions.BasePermission):
-    def has_object_permission(self, request, view, obj):
-        # Allow read permissions for any request
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        # Write permissions only to owner
-        return obj.user == request.user
-
-
-# -----------------------------------
-# USER VIEWSET
-# -----------------------------------
+# 👤 User CRUD
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-
-    def get_permissions(self):
-        if self.action in ['update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated()]
-        return [permissions.AllowAny()]
-
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
-    def follow(self, request, pk=None):
-        user_to_follow = self.get_object()
-
-        if request.user == user_to_follow:
-            return Response({"error": "You cannot follow yourself."}, status=400)
-
-        Follow.objects.get_or_create(
-            follower=request.user,
-            following=user_to_follow
-        )
-
-        return Response({"message": "Followed successfully"})
-
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
-    def unfollow(self, request, pk=None):
-        user_to_unfollow = self.get_object()
-
-        Follow.objects.filter(
-            follower=request.user,
-            following=user_to_unfollow
-        ).delete()
-
-        return Response({"message": "Unfollowed successfully"})
+    permission_classes = [permissions.AllowAny]
 
 
-# -----------------------------------
-# POST VIEWSET
-# -----------------------------------
+# 📝 Post CRUD + Voice Streaming
 class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all().order_by('-timestamp')
     serializer_class = PostSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    def perform_update(self, serializer):
+        serializer.save(user=self.request.user)
 
-# -----------------------------------
-# FEED VIEW
-# -----------------------------------
-class FeedView(APIView):
+    # 🎤 Voice Stream Endpoint
+    @action(detail=True, methods=['get'])
+    def stream(self, request, pk=None):
+        post = self.get_object()
+        if post.voice_file:
+            return FileResponse(post.voice_file.open(), content_type='audio/mpeg')
+        return Response({"error": "No voice file found."})
+
+
+# 👥 Follow CRUD
+class FollowViewSet(viewsets.ModelViewSet):
+    queryset = Follow.objects.all()
+    serializer_class = FollowSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request):
-        # Get users the current user follows
-        following_users = Follow.objects.filter(
-            follower=request.user
-        ).values_list('following', flat=True)
-
-        # Get posts from followed users
-        posts = Post.objects.filter(
-            user__in=following_users
-        ).order_by('-timestamp')
-
-        # Optional search filter
-        search_query = request.query_params.get('search')
-        if search_query:
-            posts = posts.filter(
-                Q(content__icontains=search_query)
-            )
-
-        serializer = PostSerializer(posts, many=True)
-        return Response(serializer.data)
+    def perform_create(self, serializer):
+        if serializer.validated_data['follower'] == serializer.validated_data['following']:
+            raise serializers.ValidationError("You cannot follow yourself.")
+        serializer.save()

@@ -1,17 +1,9 @@
 from rest_framework import serializers
-from django.contrib.auth.password_validation import validate_password
 from .models import User, Post, Follow
 
 
-# -----------------------------
-# USER SERIALIZER
-# -----------------------------
 class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(
-        write_only=True,
-        required=True,
-        validators=[validate_password]
-    )
+    password = serializers.CharField(write_only=True)
 
     class Meta:
         model = User
@@ -21,35 +13,14 @@ class UserSerializer(serializers.ModelSerializer):
             'email',
             'password',
             'bio',
-            'profile_picture'
+            'profile_picture',
+            'preferred_language'
         ]
 
     def create(self, validated_data):
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data['email'],
-            password=validated_data['password'],
-            bio=validated_data.get('bio', ''),
-            profile_picture=validated_data.get('profile_picture', '')
-        )
-        return user
-
-    def update(self, instance, validated_data):
-        instance.username = validated_data.get('username', instance.username)
-        instance.email = validated_data.get('email', instance.email)
-        instance.bio = validated_data.get('bio', instance.bio)
-        instance.profile_picture = validated_data.get('profile_picture', instance.profile_picture)
-
-        if validated_data.get('password'):
-            instance.set_password(validated_data['password'])
-
-        instance.save()
-        return instance
+        return User.objects.create_user(**validated_data)
 
 
-# -----------------------------
-# POST SERIALIZER
-# -----------------------------
 class PostSerializer(serializers.ModelSerializer):
     user = serializers.ReadOnlyField(source='user.username')
 
@@ -59,26 +30,19 @@ class PostSerializer(serializers.ModelSerializer):
             'id',
             'user',
             'content',
+            'voice_file',
             'media_url',
+            'original_language',
             'timestamp'
         ]
 
+    def validate(self, data):
+        if not data.get('content') and not data.get('voice_file'):
+            raise serializers.ValidationError("Post must contain text or voice.")
+        return data
 
-# -----------------------------
-# FOLLOW SERIALIZER
-# -----------------------------
+
 class FollowSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Follow
-        fields = [
-            'id',
-            'follower',
-            'following',
-            'created_at'
-        ]
-
-    def validate(self, data):
-        if data['follower'] == data['following']:
-            raise serializers.ValidationError("You cannot follow yourself.")
-        return data
+        fields = ['id', 'follower', 'following', 'created_at']
