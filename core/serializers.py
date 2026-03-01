@@ -1,48 +1,48 @@
+# core/serializers.py
 from rest_framework import serializers
-from .models import User, Post, Follow
+from django.contrib.auth import get_user_model
+from .models import Post
 
+User = get_user_model()
 
+# ----------------------
+# User Serializer
+# ----------------------
 class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, required=True)
+    profile_picture = serializers.ImageField(required=False)
 
     class Meta:
         model = User
-        fields = [
-            'id',
-            'username',
-            'email',
-            'password',
-            'bio',
-            'profile_picture',
-            'preferred_language'
-        ]
+        fields = ["id", "username", "email", "password", "profile_picture"]
 
     def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+        """Create user with hashed password"""
+        user = User(
+            username=validated_data["username"],
+            email=validated_data.get("email", ""),
+            profile_picture=validated_data.get("profile_picture")
+        )
+        user.set_password(validated_data["password"])
+        user.save()
+        return user
 
 
+# ----------------------
+# Post Serializer
+# ----------------------
 class PostSerializer(serializers.ModelSerializer):
-    user = serializers.ReadOnlyField(source='user.username')
+    author = UserSerializer(read_only=True)
+    audio_file = serializers.FileField(write_only=True, required=False)
 
     class Meta:
         model = Post
-        fields = [
-            'id',
-            'user',
-            'content',
-            'voice_file',
-            'media_url',
-            'original_language',
-            'timestamp'
-        ]
+        fields = ["id", "author", "content", "audio_file", "created_at", "updated_at"]
+        read_only_fields = ["author", "created_at", "updated_at"]
 
-    def validate(self, data):
-        if not data.get('content') and not data.get('voice_file'):
-            raise serializers.ValidationError("Post must contain text or voice.")
-        return data
-
-
-class FollowSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Follow
-        fields = ['id', 'follower', 'following', 'created_at']
+    def create(self, validated_data):
+        """Assign logged-in user as author"""
+        request = self.context.get("request")
+        if request and hasattr(request, "user"):
+            validated_data["author"] = request.user
+        return super().create(validated_data)
