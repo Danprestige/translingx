@@ -1,23 +1,18 @@
+# core/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .views import UserViewSet, PostViewSet, FeedView
+from .views import UserRegisterAPIView, PostViewSet, FeedAPIView
 
-# ----------------------
-# Register viewsets with DRF router
-# ----------------------
 router = DefaultRouter()
-router.register(r'users', UserViewSet)
-router.register(r'posts', PostViewSet)  # fixed typo: 'regisster' → 'register'
+router.register('posts', PostViewSet, basename='posts')
 
-# ----------------------
-# API URL patterns
-# ----------------------
 urlpatterns = [
-    path('', include(router.urls)),  # /api/users/, /api/posts/
-    path('feed/', FeedView.as_view(), name='feed'),  # /api/feed/
-    
-    # JWT auth endpoints
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),  # /api/token/
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # /api/token/refresh/
+    # User registration
+    path('users/register/', UserRegisterAPIView.as_view(), name='user_register'),
+
+    # Public feed
+    path('feeds/', FeedAPIView.as_view(), name='feeds'),
+
+    # Post routes (CRUD + extra actions like translate/speech_to_text)
+    path('', include(router.urls)),
 ]

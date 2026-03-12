@@ -1,4 +1,5 @@
 # config/urls.py
+
 from django.contrib import admin
 from django.urls import path, include
 from django.http import HttpResponse
@@ -6,33 +7,34 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 
-# ----------------------
-# Simple root view
-# ----------------------
+
 def home(request):
-    return HttpResponse("Welcome to TransLingx API 🚀")
+    return HttpResponse("🚀 Welcome to TransLingx Social app API")
 
-# ----------------------
-# URL patterns
-# ----------------------
+
 urlpatterns = [
-    path('', home, name='home'),  # Root
-    path('admin/', admin.site.urls),  # Admin panel
 
-    # ----------------------
-    # JWT Authentication endpoints
-    # ----------------------
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path("", home),
 
-    # ----------------------
-    # Core app API (users, posts, feed, voice uploads)
-    # ----------------------
-    path('api/', include('core.urls')),  # Include all routes from core app
+    path("admin/", admin.site.urls),
+
+    # JWT AUTH
+    path("api/token/", TokenObtainPairView.as_view()),
+    path("api/token/refresh/", TokenRefreshView.as_view()),
+
+    #streams
+    path("api/streams", include("streams.urls")),
+
+    path("api/feed/", include("feed_app.urls")),
+
+    # Interactions
+    path("api/interactions/", include("interactions.urls")),
+
+    #posts
+    path("api/posts/", include("posts.urls")),
 ]
+    
 
-# ----------------------
-# Serve media files (for voice uploads) in development
-# ----------------------
+
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
